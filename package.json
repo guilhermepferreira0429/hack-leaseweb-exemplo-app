@@ -12,6 +12,7 @@
     "test": "tsx --test testes/*.test.ts",
     "seed": "tsx seed/semear.ts",
     "seed:comparar": "tsx seed/comparar.ts",
+    "seed:extra": "tsx seed/extra.ts",
     "seed:limpar-destino": "tsx seed/limpar-destino.ts"
   },
   "dependencies": {

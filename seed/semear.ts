@@ -110,7 +110,7 @@ export interface Esperado {
 
 const EM_PARALELO = 8;
 
-function endpointOrigem(): string {
+export function endpointOrigem(): string {
   return process.env.LOCALSTACK_ENDPOINT?.trim() || 'http://127.0.0.1:4566';
 }
 

@@ -1,0 +1,142 @@
+{
+  "//": "Infraestrutura AWS da exemplo-app (a 'origem' da demo). FALHA DE PROPÓSITO: o security group da base de dados deixa a 5432 aberta a 0.0.0.0/0; a origem correta é a subrede da app (10.0.1.0/24) ou o security group app. Sem segredos: a password do RDS é gerida pela AWS e os valores dos segredos não estão aqui.",
+  "terraform": {
+    "required_providers": {
+      "aws": { "source": "hashicorp/aws", "version": "~> 5.0" }
+    }
+  },
+  "provider": {
+    "aws": { "region": "eu-west-1" }
+  },
+  "resource": {
+    "aws_vpc": {
+      "principal": {
+        "cidr_block": "10.0.0.0/16",
+        "enable_dns_hostnames": true,
+        "tags": { "Name": "encomendas" }
+      }
+    },
+    "aws_subnet": {
+      "app": {
+        "vpc_id": "${aws_vpc.principal.id}",
+        "cidr_block": "10.0.1.0/24",
+        "availability_zone": "eu-west-1a",
+        "map_public_ip_on_launch": true,
+        "tags": { "Name": "encomendas-app" }
+      },
+      "dados_a": {
+        "vpc_id": "${aws_vpc.principal.id}",
+        "cidr_block": "10.0.2.0/24",
+        "availability_zone": "eu-west-1a",
+        "tags": { "Name": "encomendas-dados-a" }
+      },
+      "dados_b": {
+        "vpc_id": "${aws_vpc.principal.id}",
+        "cidr_block": "10.0.3.0/24",
+        "availability_zone": "eu-west-1b",
+        "tags": { "Name": "encomendas-dados-b" }
+      }
+    },
+    "aws_security_group": {
+      "app": {
+        "name": "encomendas-app",
+        "description": "Servidores da app de encomendas",
+        "vpc_id": "${aws_vpc.principal.id}",
+        "ingress": [
+          { "description": "HTTPS", "from_port": 443, "to_port": 443, "protocol": "tcp", "cidr_blocks": ["0.0.0.0/0"], "ipv6_cidr_blocks": [], "prefix_list_ids": [], "security_groups": [], "self": false },
+          { "description": "HTTP", "from_port": 80, "to_port": 80, "protocol": "tcp", "cidr_blocks": ["0.0.0.0/0"], "ipv6_cidr_blocks": [], "prefix_list_ids": [], "security_groups": [], "self": false }
+        ],
+        "egress": [
+          { "description": "Saída", "from_port": 0, "to_port": 0, "protocol": "-1", "cidr_blocks": ["0.0.0.0/0"], "ipv6_cidr_blocks": [], "prefix_list_ids": [], "security_groups": [], "self": false }
+        ]
+      },
+      "base_dados": {
+        "name": "encomendas-base-dados",
+        "description": "Postgres das encomendas",
+        "vpc_id": "${aws_vpc.principal.id}",
+        "ingress": [
+          { "description": "Postgres", "from_port": 5432, "to_port": 5432, "protocol": "tcp", "cidr_blocks": ["0.0.0.0/0"], "ipv6_cidr_blocks": [], "prefix_list_ids": [], "security_groups": [], "self": false }
+        ],
+        "egress": [
+          { "description": "Saída", "from_port": 0, "to_port": 0, "protocol": "-1", "cidr_blocks": ["0.0.0.0/0"], "ipv6_cidr_blocks": [], "prefix_list_ids": [], "security_groups": [], "self": false }
+        ]
+      },
+      "cache": {
+        "name": "encomendas-cache",
+        "description": "Redis das sessões",
+        "vpc_id": "${aws_vpc.principal.id}",
+        "ingress": [
+          { "description": "Redis", "from_port": 6379, "to_port": 6379, "protocol": "tcp", "cidr_blocks": [], "ipv6_cidr_blocks": [], "prefix_list_ids": [], "security_groups": ["${aws_security_group.app.id}"], "self": false }
+        ]
+      }
+    },
+    "aws_instance": {
+      "app": {
+        "ami": "ami-0abcdef1234567890",
+        "instance_type": "t3.small",
+        "subnet_id": "${aws_subnet.app.id}",
+        "vpc_security_group_ids": ["${aws_security_group.app.id}"],
+        "tags": { "Name": "encomendas-app" }
+      }
+    },
+    "aws_s3_bucket": {
+      "faturas": { "bucket": "faturas" },
+      "fotos_produtos": { "bucket": "fotos-produtos" }
+    },
+    "aws_db_subnet_group": {
+      "dados": {
+        "name": "encomendas-dados",
+        "subnet_ids": ["${aws_subnet.dados_a.id}", "${aws_subnet.dados_b.id}"]
+      }
+    },
+    "aws_db_instance": {
+      "encomendas": {
+        "identifier": "encomendas",
+        "engine": "postgres",
+        "engine_version": "16",
+        "instance_class": "db.t4g.micro",
+        "allocated_storage": 20,
+        "db_name": "encomendas",
+        "username": "app",
+        "manage_master_user_password": true,
+        "db_subnet_group_name": "${aws_db_subnet_group.dados.name}",
+        "vpc_security_group_ids": ["${aws_security_group.base_dados.id}"],
+        "publicly_accessible": true,
+        "skip_final_snapshot": true
+      }
+    },
+    "aws_sqs_queue": {
+      "encomendas_criadas": { "name": "encomendas-criadas" },
+      "encomendas_novas": { "name": "encomendas-novas" }
+    },
+    "aws_secretsmanager_secret": {
+      "api_pagamentos": { "name": "encomendas/prod/api-pagamentos" },
+      "base_dados": { "name": "encomendas/prod/base-dados" },
+      "smtp": { "name": "encomendas/prod/smtp" },
+      "jwt_assinatura": { "name": "encomendas/prod/jwt-assinatura" }
+    },
+    "aws_ssm_parameter": {
+      "moeda": { "name": "/encomendas/prod/app/moeda", "type": "String", "value": "EUR" },
+      "bucket_faturas": { "name": "/encomendas/prod/s3/bucket-faturas", "type": "String", "value": "faturas" }
+    },
+    "aws_elasticache_subnet_group": {
+      "cache": {
+        "name": "encomendas-cache",
+        "subnet_ids": ["${aws_subnet.dados_a.id}", "${aws_subnet.dados_b.id}"]
+      }
+    },
+    "aws_elasticache_replication_group": {
+      "sessoes": {
+        "replication_group_id": "encomendas-sessoes",
+        "description": "Cache de sessões e encomendas",
+        "engine": "redis",
+        "engine_version": "7.1",
+        "node_type": "cache.t4g.micro",
+        "num_cache_clusters": 1,
+        "port": 6379,
+        "subnet_group_name": "${aws_elasticache_subnet_group.cache.name}",
+        "security_group_ids": ["${aws_security_group.cache.id}"]
+      }
+    }
+  }
+}

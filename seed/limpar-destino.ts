@@ -109,7 +109,8 @@ async function main(): Promise<void> {
     });
     ligacao.on('error', () => {});
     try {
-      for (const fila of [...Object.keys(esperado.filas), 'encomendas-criadas']) {
+      // encomendas-eventos-faturacao: a fila do SNS (seed:extra), que o migrarFila também move.
+      for (const fila of [...Object.keys(esperado.filas), 'encomendas-criadas', 'encomendas-eventos-faturacao']) {
         const canal = await ligacao.createChannel();
         canal.on('error', () => {});
         try {

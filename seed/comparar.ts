@@ -2,7 +2,7 @@
 // npm run seed:comparar -- --destino -> confere o destino (MinIO, DATABASE_URL_DESTINO, RabbitMQ, OpenBao, Valkey)
 // Prova independente do migrador: recalcula os checksums do zero e compara-os com os que a seed gravou.
 // Só lê. Sai com código 1 se alguma coisa não bater.
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { GetQueueAttributesCommand, GetQueueUrlCommand, SQSClient } from '@aws-sdk/client-sqs';
 import * as amqp from 'amqplib';
@@ -14,8 +14,22 @@ import { checksumRedis, ligarRedis } from './cache';
 import type { ResumoCache } from './cache';
 import { lerSegredosAws, lerSegredosOpenBao } from './segredos';
 import type { LigacaoOpenBao, ResumoSegredos } from './segredos';
+import { checksumTabelaDynamo } from './dynamo';
+import type { ResumoDynamo } from './dynamo';
+import { lerTopico } from './sns';
+import type { ResumoTopico } from './sns';
+import { lerGrupoLogs } from './logs';
+import type { ResumoLogs } from './logs';
 
 const CAMINHO_ESPERADO = fileURLToPath(new URL('./esperado.json', import.meta.url));
+const CAMINHO_EXTRA = fileURLToPath(new URL('./esperado-extra.json', import.meta.url));
+
+interface EsperadoExtra {
+  dynamodb: Record<string, ResumoDynamo & { chaveParticao: { nome: string; tipo: 'S' | 'N' }; chaveOrdenacao?: { nome: string; tipo: 'S' | 'N' } }>;
+  sns: ResumoTopico;
+  filas: Record<string, { mensagens: number; checksum: string }>;
+  logs: Record<string, ResumoLogs>;
+}
 
 interface Esperado {
   esquema: string;
@@ -27,7 +41,7 @@ interface Esperado {
 }
 
 export interface LinhaComparacao {
-  tipo: 's3' | 'pg' | 'sqs' | 'amqp' | 'sm' | 'ssm' | 'bao' | 'redis';
+  tipo: 's3' | 'pg' | 'sqs' | 'amqp' | 'sm' | 'ssm' | 'bao' | 'redis' | 'ddb' | 'sns' | 'logs';
   nome: string;
   esperado: string;
   encontrado: string;
@@ -203,6 +217,41 @@ export async function comparar(lado: Lado, esperado: Esperado = JSON.parse(readF
       } catch (erro) {
         // Nunca se mostra o URL (tem a senha).
         linhas.push({ tipo: 'redis', nome: lado.redisNome, esperado: fmt(e), encontrado: `não responde (${(erro as Error).name})`, ok: false });
+      }
+    }
+  }
+  // Fase seguinte (npm run seed:extra): DynamoDB, SNS e CloudWatch Logs, só na origem.
+  if (existsSync(CAMINHO_EXTRA)) {
+    const x = JSON.parse(readFileSync(CAMINHO_EXTRA, 'utf8')) as EsperadoExtra;
+    if (!lado.segredosAws) {
+      linhas.push({ tipo: 'ddb', nome: 'DynamoDB, SNS, Logs', esperado: 'fase seguinte', encontrado: 'sem destino hoje (só no plano)', ok: null });
+    } else {
+      const aws = lado.segredosAws;
+      const tenta = async (tipo: LinhaComparacao['tipo'], nome: string, esperado: string, fn: () => Promise<{ texto: string; ok: boolean }>): Promise<void> => {
+        try {
+          const r = await fn();
+          linhas.push({ tipo, nome, esperado, encontrado: r.texto, ok: r.ok });
+        } catch (erro) {
+          // Fase seguinte: se não foi semeado nesta máquina, não é erro (não aparece a vermelho na demo).
+          const naoExiste = (erro as Error).name === 'ResourceNotFoundException' || /não existe/.test((erro as Error).message);
+          linhas.push({ tipo, nome, esperado, encontrado: naoExiste ? 'não semeado (npm run seed:extra)' : (erro as Error).message, ok: naoExiste ? null : false });
+        }
+      };
+      for (const [nome, e] of Object.entries(x.dynamodb)) {
+        await tenta('ddb', nome, `${e.itens} itens ${curto(e.checksum)}`, async () => {
+          const r = await checksumTabelaDynamo(aws, { nome, chaveParticao: e.chaveParticao, chaveOrdenacao: e.chaveOrdenacao });
+          return { texto: `${r.itens} itens ${curto(r.checksum)}`, ok: r.checksum === e.checksum };
+        });
+      }
+      await tenta('sns', x.sns.topico, `${x.sns.subscricoes} subscr. ${curto(x.sns.checksum)}`, async () => {
+        const r = await lerTopico(aws);
+        return { texto: `${r.subscricoes} subscr. ${curto(r.checksum)}`, ok: r.checksum === x.sns.checksum };
+      });
+      for (const [nome, e] of Object.entries(x.logs)) {
+        await tenta('logs', nome, `${e.eventos} eventos ${curto(e.checksum)}`, async () => {
+          const r = await lerGrupoLogs(aws, nome);
+          return { texto: `${r.eventos} eventos ${curto(r.checksum)}`, ok: r.checksum === e.checksum };
+        });
       }
     }
   }
