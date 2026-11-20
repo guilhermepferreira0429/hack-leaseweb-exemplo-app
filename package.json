@@ -1,0 +1,33 @@
+{
+  "name": "@mwbe/exemplo-app",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./seed": "./seed/index.ts"
+  },
+  "scripts": {
+    "test": "tsx --test testes/*.test.ts",
+    "seed": "tsx seed/semear.ts",
+    "seed:comparar": "tsx seed/comparar.ts",
+    "seed:limpar-destino": "tsx seed/limpar-destino.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "^3.1173.0",
+    "@aws-sdk/client-dynamodb": "^3.1173.0",
+    "@aws-sdk/client-s3": "^3.700.0",
+    "@aws-sdk/client-secrets-manager": "^3.1173.0",
+    "@aws-sdk/client-sns": "^3.1173.0",
+    "@aws-sdk/client-sqs": "^3.700.0",
+    "@aws-sdk/client-ssm": "^3.1173.0",
+    "@mwbe/shared": "*",
+    "amqplib": "^2.4.0",
+    "pg": "^8.13.0",
+    "redis": "^5.12.4"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.10"
+  }
+}

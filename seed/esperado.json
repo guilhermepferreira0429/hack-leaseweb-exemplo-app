@@ -1,0 +1,74 @@
+{
+  "semente": 20261120,
+  "dataReferencia": "2026-11-19T23:59:59Z",
+  "esquema": "loja",
+  "algoritmos": {
+    "bucket": "sha256 das linhas \"<chave>\\t<sha256 do objeto>\\n\" por ordem de chave, só chaves que passam no filtro",
+    "tabela": "sha256 de string_agg(t::text, E'\\n' ORDER BY t.id) em UTF-8, com TIME ZONE 'UTC' e DateStyle 'ISO, YMD'",
+    "fila": "sha256 dos corpos das mensagens ordenados e unidos por \"\\n\"",
+    "segredos": "sha256 das linhas \"<nome>\\t<valor>\\n\" (Secrets Manager) ou \"<nome>\\t<tipo>\\t<valor>\\n\" (SSM), por ordem de nome",
+    "cache": "sha256 das linhas \"<chave>\\t<tipo>\\t<valor canónico>\\t<ttl|sem-ttl>\\n\" por ordem de chave, só os prefixos da seed (seed/cache.ts)"
+  },
+  "buckets": {
+    "faturas": {
+      "objetos": 1200,
+      "bytes": 182248867,
+      "checksum": "096fbc4a3f265b747e90b76ec61b1324c72f53baac9626d15055538894a2ec34",
+      "filtro": "^FT-2026-\\d{4}\\.pdf$"
+    },
+    "fotos-produtos": {
+      "objetos": 300,
+      "bytes": 119205079,
+      "checksum": "8f36124ba8e790ee05d3f942a97155d4607a96e07792650415b2b39ff9ad859a",
+      "filtro": "^PRD-\\d{4}-\\d\\.png$"
+    }
+  },
+  "tabelas": {
+    "clientes": {
+      "linhas": 500,
+      "checksum": "c3b29eec5421b0b47aa43d72cbebfd044f70bb9afa59e0f3714f8956d82f8e12"
+    },
+    "produtos": {
+      "linhas": 120,
+      "checksum": "421038df3eb8383bb79c3ba149f1b14d5577b2092b88ca757377f5573a116f4e"
+    },
+    "encomendas": {
+      "linhas": 5000,
+      "checksum": "5b3b42e59902de5dcf562922a2272887b5fec41159d1f2ace09ace924bf31c4d"
+    },
+    "linhas_encomenda": {
+      "linhas": 11858,
+      "checksum": "ef50f631d684be75cb8769217f679fc321c58eae4c86826fc0c56c0752f45a2b"
+    }
+  },
+  "filas": {
+    "encomendas-novas": {
+      "mensagens": 50,
+      "checksum": "eac5c28f24a34888558e8556100dd527794dc54ea014a5ae4f9bfa99c6c33a4d"
+    }
+  },
+  "segredos": {
+    "secretsmanager": {
+      "itens": 4,
+      "checksum": "5c502e606cfabe2e6e4983d6ddafab9ff8eaf5aa83f2b4dd27c92827c67ba545"
+    },
+    "ssm": {
+      "itens": 12,
+      "checksum": "be6f126ced707f518b78a0b93beec983d075cdf9a26a960982afd921fb5ede65"
+    }
+  },
+  "cache": {
+    "chaves": 594,
+    "comTtl": 470,
+    "checksum": "28f6e07c0dd1aee4fb077f72a7304b76e6c07d218a106de9c03ed0063ee90e36",
+    "prefixos": [
+      "sessao:",
+      "carrinho:",
+      "cache:produto:",
+      "stock:reservado:",
+      "ranking:",
+      "emails:",
+      "clientes:"
+    ]
+  }
+}
